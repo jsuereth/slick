@@ -154,6 +154,44 @@ class JdbcMapperTest extends TestkitTest[JdbcTestDB] {
     assertEquals(oData, ts.first)
   }
 
+  type KeyedEntity[U] = (Long,U)
+  def testProvenShapeShape {
+    import scala.slick.lifted.ProvenShape
+    import scala.slick.lifted.Shape
+
+    case class Item(color: String, activity: Long)
+
+    abstract class KeyedTable[U](tag: Tag,name: String)(
+      implicit sh: Shape[_ <: ShapeLevel.Flat, U, U, _]
+    ) extends Table[KeyedEntity[U]](tag, name) {
+      val id: Column[Long] = column[Long]("ID", O.AutoInc, O.PrimaryKey)
+      def mapping : ProvenShape[U]
+      def * = {
+        //implicit def mappingShape = mapping.shape.asInstanceOf[Shape[_ <: ShapeLevel.Flat, U, U, _]]
+        (id,mapping)
+      }
+    }
+    class ItemsTable(tag: Tag) extends KeyedTable[Item](tag,"ITEM"){
+      val color: Column[String] = column[String]("COLOR")
+      val activity: Column[Long] = column[Long]("ACTIVITY")
+
+      def mapping = (color, activity) <> (Item.tupled, Item.unapply)
+    }
+    val ItemsTable = TableQuery[ItemsTable]
+
+    val data = Seq(
+      ( 1L,
+        Item("3", 4)
+      )
+    )
+
+    ItemsTable.ddl.create
+    ItemsTable.insertAll(data:_*)
+
+    assertEquals(data, ItemsTable.run)
+
+  }
+
   def testMappedJoin {
     case class A(id: Int, value: Int)
     case class B(id: Int, value: Option[String])
